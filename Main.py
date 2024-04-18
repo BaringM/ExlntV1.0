@@ -4,44 +4,66 @@ import time
 pygame.init()
 
 # Set up the screen
-screen_width = 1000  # Increased width to accommodate score table
+screen_width = 1000  # Increased width to accommodate score table and instructions
 screen_height = 600
 cell_size = 40  # Size of each cell in the maze
-
 screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.set_caption("Maze Game with Scores")
+pygame.display.set_caption("Maze Game with Multiple Levels")
 
-# Define the maze layout
-maze = [
+# Define the mazes for each level
+maze_level_1 = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 2, 0, 0, 1, 1, 0, 0, 0, 0, 1],  # Start point
+    [1, 2, 0, 0, 1, 1, 0, 0, 0, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
     [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 0, 0, 0, 1, 1, 3, 1],  # Finish point
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 3, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
 
-# Score tracking
-scores = []
+# Maze Level 2 as provided
+maze_level_2 = [
+    [1, 9, 9, 9, 9, 9, 1, 9, 9, 9, 1],
+    [1, 2, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1],
+    [1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1]
+]
+
+# Store level data
+levels = [
+    {"maze": maze_level_1, "start": (1, 1), "finish": (8, 9)},
+    {"maze": maze_level_2, "start": (1, 1), "finish": (8, 9)}
+]
+current_level_index = 0
+
+# Initialize scores for each level
+scores = [[] for _ in levels]
 
 # Font for text rendering
 font = pygame.font.Font(None, 36)
 
-# Calculate offsets to center the maze
-maze_offset_x = (screen_width - len(maze[0]) * cell_size) // 2 + 200  # Adjust to fit score table
-maze_offset_y = (screen_height - len(maze) * cell_size) // 2
-
+# Blob class definition
 class Blob:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+    def __init__(self, level_index):
+        self.load_level(level_index)
+
+    def load_level(self, level_index):
+        level_data = levels[level_index]
+        start_x, start_y = level_data["start"]
+        self.x = (screen_width // 2 - len(level_data["maze"][0]) * cell_size // 2) + start_x * cell_size
+        self.y = (screen_height // 2 - len(level_data["maze"]) * cell_size // 2) + start_y * cell_size
         self.size = cell_size
         self.color = (0, 255, 0)  # Green
-        self.start_time = None
+        self.start_time = time.time()
         self.finished = False
 
     def draw(self):
@@ -51,97 +73,102 @@ class Blob:
         if not self.finished:
             new_x = self.x + dx
             new_y = self.y + dy
-            # Check if the new position is within a walkable cell
-            cell_x = (new_x - maze_offset_x) // cell_size
-            cell_y = (new_y - maze_offset_y) // cell_size
+            maze = levels[current_level_index]["maze"]
+            cell_x = (new_x - (screen_width // 2 - len(maze[0]) * cell_size // 2)) // cell_size
+            cell_y = (new_y - (screen_height // 2 - len(maze) * cell_size // 2)) // cell_size
+            # Check if the coordinates are within maze bounds
             if 0 <= cell_x < len(maze[0]) and 0 <= cell_y < len(maze):
-                if maze[cell_y][cell_x] == 0:
+                cell_type = maze[cell_y][cell_x]
+                if cell_type == 0:
                     self.x = new_x
                     self.y = new_y
-                elif maze[cell_y][cell_x] == 3:
-                    self.x = new_x
-                    self.y = new_y
-                    if self.start_time and not self.finished:
-                        elapsed_time = time.time() - self.start_time
-                        scores.append(elapsed_time)
-                        scores.sort()
-                        if len(scores) > 3:
-                            scores.pop(-1)
-                        self.finished = True
+                elif cell_type == 3:
+                    self.finish_level(new_x, new_y)
+                elif cell_type == 9:
+                    self.reset()  # Reset if moving into a hazardous area
+            else:
+                self.reset()  # Reset if moving outside the maze boundaries
+
+    def finish_level(self, new_x, new_y):
+        self.x = new_x
+        self.y = new_y
+        if not self.finished:
+            elapsed_time = time.time() - self.start_time
+            scores[current_level_index].append(elapsed_time)
+            scores[current_level_index].sort()
+            if len(scores[current_level_index]) > 3:
+                scores[current_level_index].pop()
+            self.finished = True
+            print(f"Level {current_level_index + 1} completed in {elapsed_time:.2f} seconds")
+            next_level()  # Call to change the level
 
     def reset(self):
-        # Reset the blob to the starting position and restart the timer
-        start_x, start_y = next((x * cell_size, y * cell_size) for y, row in enumerate(maze) for x, val in enumerate(row) if val == 2)
-        self.x = maze_offset_x + start_x
-        self.y = maze_offset_y + start_y
-        self.start_time = None
-        self.finished = False
+        print("Blob has died! Resetting level...")
+        self.load_level(current_level_index)
 
-# Initialize the blob at the start point
-start_x, start_y = next((x * cell_size, y * cell_size) for y, row in enumerate(maze) for x, val in enumerate(row) if val == 2)
-blob = Blob(maze_offset_x + start_x, maze_offset_y + start_y)
 
+
+# Function to handle level switching and initialization
+def next_level():
+    global current_level_index, blob
+    current_level_index = (current_level_index + 1) % len(levels)
+    blob.reset()
+
+# Function to draw controls and scores
 def draw_text():
-    screen.fill((0, 0, 0), (0, 0, 200, screen_height))  # Clear the left side area
-    # Instructions for playing
-    instructions = [
-        "Controls:",
-        "Shift + Arrow = Move",
-        "R = Reset",
-        "",
-        "Top Times:"
-    ]
-
-    # Draw instructions and controls
-    for i, text in enumerate(instructions):
+    screen.fill((0, 0, 0), (0, 0, 200, screen_height))  # Clear the sidebar area
+    instructions = ["Controls:", "Shift + Arrow = Move", "R = Reset", "", "Top Times:"]
+    y_offset = 20
+    for text in instructions:
         instruction_text = font.render(text, True, (255, 255, 255))
-        screen.blit(instruction_text, (30, 120 + 30 * i))
+        screen.blit(instruction_text, (30, y_offset))
+        y_offset += 30
+    
+    # Display scores for the current level
+    y_offset += 20  # Additional offset for scores section
+    score_texts = ["Level 1:", "Level 2:"]
+    for i, level_scores in enumerate(scores):
+        level_text = font.render(score_texts[i], True, (255, 255, 255))
+        screen.blit(level_text, (30, y_offset))
+        y_offset += 30
+        for score in level_scores[:3]:
+            score_text = font.render(f"{score:.2f}s", True, (255, 255, 255))
+            screen.blit(score_text, (50, y_offset))
+            y_offset += 30
 
-    # Draw top scores
-    for j, score in enumerate(scores):
-        score_text = font.render(f"{j + 1}. {score:.2f}s", True, (255, 255, 255))
-        screen.blit(score_text, (30, 280 + 40 * j))
+# Create the blob object for the initial level
+blob = Blob(current_level_index)
 
-
+# Main game loop
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
+            pygame.quit()
+            exit()
 
     keys = pygame.key.get_pressed()
     if keys[pygame.K_r]:  # Reset the game when 'R' is pressed
         blob.reset()
 
-    if (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and not blob.start_time and not blob.finished:
-        blob.start_time = time.time()  # Start the timer on first valid move with Shift
-    if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
-        if keys[pygame.K_LEFT]:
-            blob.move(-cell_size, 0)
-        if keys[pygame.K_RIGHT]:
-            blob.move(cell_size, 0)
-        if keys[pygame.K_UP]:
-            blob.move(0, -cell_size)
-        if keys[pygame.K_DOWN]:
-            blob.move(0, cell_size)
+    if (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):
+        if not blob.finished:
+            if keys[pygame.K_LEFT]:
+                blob.move(-cell_size, 0)
+            if keys[pygame.K_RIGHT]:
+                blob.move(cell_size, 0)
+            if keys[pygame.K_UP]:
+                blob.move(0, -cell_size)
+            if keys[pygame.K_DOWN]:
+                blob.move(0, cell_size)
 
-    # Clear the entire screen and redraw elements
-    screen.fill((0, 0, 0))
-    
-    # Draw the maze
+    screen.fill((0, 0, 0))  # Clear the screen
+    # Draw the current level's maze
+    maze = levels[current_level_index]["maze"]
     for y, row in enumerate(maze):
         for x, cell in enumerate(row):
             color = (255, 255, 255) if cell == 1 else (0, 0, 0)
-            pygame.draw.rect(screen, color, (maze_offset_x + x * cell_size, maze_offset_y + y * cell_size, cell_size, cell_size))
-    
-    # Draw the blob
+            pygame.draw.rect(screen, color, ((screen_width // 2 - len(maze[0]) * cell_size // 2) + x * cell_size, (screen_height // 2 - len(maze) * cell_size // 2) + y * cell_size, cell_size, cell_size))
     blob.draw()
-
-    # Draw the scores
     draw_text()
-    
-    # Update the display
     pygame.display.update()
-
-pygame.quit()
-
