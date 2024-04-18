@@ -1,4 +1,6 @@
 import pygame
+import time
+
 pygame.init()
 
 # Set up the screen
@@ -6,16 +8,16 @@ screen_width = 800
 screen_height = 600
 cell_size = 40  # Size of each cell in the maze
 maze = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-    [1, 0, 1, 0, 0, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 1, 0, 0, 1, 0, 1],
-    [1, 0, 1, 0, 1, 1, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 1, 0, 1, 0, 1],
-    [1, 0, 1, 1, 0, 1, 0, 1, 0, 1],
-    [1, 0, 0, 1, 0, 0, 0, 1, 0, 1],
-    [1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 2, 0, 0, 1, 1, 0, 0, 0, 0, 1],  # Start point
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 3, 1],  # Finish point
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
 
 class Blob:
@@ -24,6 +26,7 @@ class Blob:
         self.y = y
         self.size = 40
         self.color = (0, 255, 0)  # Green
+        self.start_time = None
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.size, self.size))
@@ -45,25 +48,37 @@ class Blob:
             cell_y = corner[1] // cell_size
             if maze[cell_y][cell_x] == 1:
                 return False
+            elif maze[cell_y][cell_x] == 3:
+                self.stop_timer()  # Stop timer when reaching the finish
         return True
+    
+    def start_timer(self):
+        self.start_time = time.time()
+
+    def stop_timer(self):
+        if self.start_time is not None:
+            elapsed_time = time.time() - self.start_time
+            print("Congratulations! You completed the maze in {:.2f} seconds.".format(elapsed_time))
+            self.start_time = None
+
+# Find the starting position marked as '2' in the maze
+for y, row in enumerate(maze):
+    for x, cell in enumerate(row):
+        if cell == 2:
+            blob_start_x = x * cell_size
+            blob_start_y = y * cell_size
+            break
+    else:
+        continue
+    break
+
+# Create the blob at the starting position
+blob = Blob(blob_start_x, blob_start_y)
 
 # Set up the screen
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Green Blob Maze Game")
 running = True
-
-# Find an empty cell for the starting position of the blob
-blob_start_x, blob_start_y = 0, 0
-while maze[blob_start_y][blob_start_x] != 0:
-    blob_start_x += 1
-    if blob_start_x >= len(maze[0]):
-        blob_start_x = 0
-        blob_start_y += 1
-    if blob_start_y >= len(maze):
-        raise ValueError("No empty cell found for blob's starting position.")
-
-# Create the blob
-blob = Blob(blob_start_x * cell_size, blob_start_y * cell_size)
 
 while running:
     for event in pygame.event.get():
@@ -86,7 +101,9 @@ while running:
             if blob.can_move(0, 5):
                 blob.y += 5
 
-
+    # Start timer when moving from the start point
+    if maze[blob.y // cell_size][blob.x // cell_size] == 2 and blob.start_time is None:
+        blob.start_timer()
 
     # Fill the screen with black
     screen.fill((0, 0, 0))
