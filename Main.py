@@ -1,5 +1,6 @@
 import pygame
 import time
+from Levels import get_levels 
 
 pygame.init()
 
@@ -10,43 +11,14 @@ cell_size = 40  # Size of each cell in the maze
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Maze Game with Multiple Levels")
 
-# Define the mazes for each level
-maze_level_1 = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 2, 0, 0, 1, 1, 0, 0, 0, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 0, 0, 0, 1, 1, 3, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-]
-
-# Maze Level 2 as provided
-maze_level_2 = [
-    [1, 9, 9, 9, 9, 9, 1, 9, 9, 9, 1],
-    [1, 2, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-    [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1],
-    [1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1]
-]
-
-# Store level data
-levels = [
-    {"maze": maze_level_1, "start": (1, 1), "finish": (8, 9)},
-    {"maze": maze_level_2, "start": (1, 1), "finish": (8, 9)}
-]
+levels = get_levels()
 current_level_index = 0
+level_data = levels[current_level_index]
 
 # Initialize scores for each level
 scores = [[] for _ in levels]
+combined_score_active = False
+previous_score = 0
 
 # Font for text rendering
 font = pygame.font.Font(None, 36)
@@ -76,7 +48,6 @@ class Blob:
             maze = levels[current_level_index]["maze"]
             cell_x = (new_x - (screen_width // 2 - len(maze[0]) * cell_size // 2)) // cell_size
             cell_y = (new_y - (screen_height // 2 - len(maze) * cell_size // 2)) // cell_size
-            # Check if the coordinates are within maze bounds
             if 0 <= cell_x < len(maze[0]) and 0 <= cell_y < len(maze):
                 cell_type = maze[cell_y][cell_x]
                 if cell_type == 0:
@@ -85,58 +56,67 @@ class Blob:
                 elif cell_type == 3:
                     self.finish_level(new_x, new_y)
                 elif cell_type == 9:
-                    self.reset()  # Reset if moving into a hazardous area
+                    self.reset()
             else:
-                self.reset()  # Reset if moving outside the maze boundaries
+                self.reset()
 
     def finish_level(self, new_x, new_y):
+        global previous_score, combined_score_active
         self.x = new_x
         self.y = new_y
         if not self.finished:
             elapsed_time = time.time() - self.start_time
-            scores[current_level_index].append(elapsed_time)
-            scores[current_level_index].sort()
-            if len(scores[current_level_index]) > 3:
-                scores[current_level_index].pop()
+            if combined_score_active and current_level_index == 1:
+                total_time = previous_score + elapsed_time
+                scores[current_level_index].append(total_time)
+                scores[current_level_index].sort()
+                if len(scores[current_level_index]) > 3:
+                    scores[current_level_index].pop()
+                print(f"Combined Level 1 & 2 completed in {total_time:.2f} seconds")
+            else:
+                scores[current_level_index].append(elapsed_time)
+                scores[current_level_index].sort()
+                if len(scores[current_level_index]) > 3:
+                    scores[current_level_index].pop()
+                print(f"Level {current_level_index + 1} completed in {elapsed_time:.2f} seconds")
             self.finished = True
-            print(f"Level {current_level_index + 1} completed in {elapsed_time:.2f} seconds")
-            next_level()  # Call to change the level
+            next_level()
 
     def reset(self):
+        global combined_score_active, previous_score, current_level_index
         print("Blob has died! Resetting level...")
-        self.load_level(current_level_index)
+        current_level_index = 0  # Set current_level_index to 0 (maze 1)
+        self.load_level(current_level_index)  # Load maze 1
 
 
-
-# Function to handle level switching and initialization
 def next_level():
-    global current_level_index, blob
+    global current_level_index, blob, previous_score, combined_score_active
+    if current_level_index == 0:
+        previous_score = scores[current_level_index][0]
+        combined_score_active = True
+    elif current_level_index == 1:
+        combined_score_active = False
     current_level_index = (current_level_index + 1) % len(levels)
-    blob.reset()
+    blob.load_level(current_level_index)
 
-# Function to draw controls and scores
 def draw_text():
-    screen.fill((0, 0, 0), (0, 0, 200, screen_height))  # Clear the sidebar area
-    instructions = ["Controls:", "Shift + Arrow = Move", "R = Reset", "", "Top Times:"]
-    y_offset = 20
+    screen.fill((0, 0, 0), (0, 0, 200, screen_height))
+    instructions = ["Controls:", "Move = Shift + Arrow", "R = Reset", "", "Top Times:"]
+    y_offset = 120
     for text in instructions:
         instruction_text = font.render(text, True, (255, 255, 255))
         screen.blit(instruction_text, (30, y_offset))
         y_offset += 30
     
-    # Display scores for the current level
-    y_offset += 20  # Additional offset for scores section
-    score_texts = ["Level 1:", "Level 2:"]
-    for i, level_scores in enumerate(scores):
-        level_text = font.render(score_texts[i], True, (255, 255, 255))
-        screen.blit(level_text, (30, y_offset))
+    # Display level 2 time
+    y_offset += 20
+    for score in scores[1][:3]:  # Display top 3 scores for level 2
+        score_text = font.render(f"{score:.2f}s", True, (255, 255, 255))
+        screen.blit(score_text, (50, y_offset))
         y_offset += 30
-        for score in level_scores[:3]:
-            score_text = font.render(f"{score:.2f}s", True, (255, 255, 255))
-            screen.blit(score_text, (50, y_offset))
-            y_offset += 30
 
-# Create the blob object for the initial level
+
+
 blob = Blob(current_level_index)
 
 # Main game loop
@@ -148,7 +128,7 @@ while running:
             exit()
 
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_r]:  # Reset the game when 'R' is pressed
+    if keys[pygame.K_r]:
         blob.reset()
 
     if (keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]):
@@ -162,8 +142,7 @@ while running:
             if keys[pygame.K_DOWN]:
                 blob.move(0, cell_size)
 
-    screen.fill((0, 0, 0))  # Clear the screen
-    # Draw the current level's maze
+    screen.fill((0, 0, 0))
     maze = levels[current_level_index]["maze"]
     for y, row in enumerate(maze):
         for x, cell in enumerate(row):
